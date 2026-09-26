@@ -1,0 +1,188 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ==========================================
+# 1. DATA LOADING & INITIAL EXPLORATION
+# ==========================================
+# Define the folder path where your files live
+folder_path = '/content/drive/MyDrive/Data Analytics Hackathon/'
+
+# Load the core datasets
+print("Loading data...")
+swaps = pd.read_csv(folder_path + 'swap_events.csv')
+riders = pd.read_csv(folder_path + 'riders.csv')
+stations = pd.read_csv(folder_path + 'stations.csv')
+print("Data loaded successfully!\n")
+
+# Initial Data Check
+display(swaps.head())
+print("\n--- Swap Events Info ---")
+swaps.info()
+print("\n--- Riders Info ---")
+riders.info()
+
+# ==========================================
+# 2. DATA CLEANING & INTEGRITY
+# ==========================================
+# A. Clean the city names (Fixing intentional misspellings)
+riders['home_city'] = riders['home_city'].str.title().str.strip()
+city_corrections = {
+    'Blr': 'Bengaluru',
+    'Bangalore': 'Bengaluru',
+    'Bom': 'Mumbai',
+    'Bombay': 'Mumbai',
+    'Mum': 'Mumbai',
+    'Ncr': 'Delhi Ncr',
+    'New Delhi': 'Delhi Ncr',
+    'Delhi': 'Delhi Ncr',
+    'Gurgaon': 'Delhi Ncr',
+    'Hyd': 'Hyderabad',
+    'Jai': 'Jaipur',
+    'Pun': 'Pune'
+}
+riders['home_city'] = riders['home_city'].replace(city_corrections)
+print("\nStep 1 Complete: Cities are cleaned!")
+
+# B. Fix the firmware timestamp bug (Adding 5.5 hours to v3.2.0)
+swaps['event_ts'] = pd.to_datetime(swaps['event_ts'])
+bug_mask = (swaps['station_firmware'] == 'v3.2.0') & (swaps['event_ts'] >= '2025-03-10') & (swaps['event_ts'] <= '2025-04-14')
+swaps.loc[bug_mask, 'event_ts'] += pd.Timedelta(hours=5, minutes=30)
+print("Step 2 Complete: Timestamp bug is fixed!\n")
+
+# ==========================================
+# 3. HIGH-LEVEL NETWORK PERFORMANCE
+# ==========================================
+# Calculate Swap Outcomes
+outcome_counts = swaps['event_type'].value_counts()
+outcome_percentages = swaps['event_type'].value_counts(normalize=True) * 100
+
+print("--- Number of Swaps by Outcome ---")
+print(outcome_counts)
+print("\n--- Percentage of Swaps by Outcome (%) ---")
+print(outcome_percentages.round(2).astype(str) + '%')
+
+# Calculate Average Wait Times
+swaps['wait_time_minutes'] = swaps['queue_wait_sec'] / 60
+average_wait = swaps.groupby('event_type')['wait_time_minutes'].mean().round(2)
+print("\n--- Average Wait Time (Minutes) ---")
+print(average_wait)
+
+# ==========================================
+# 4. THE MEALTIME BOTTLENECK ANALYSIS
+# ==========================================
+# Extract hour and filter for major failures
+swaps['hour'] = swaps['event_ts'].dt.hour
+major_failures = swaps[swaps['event_type'].isin(['failed_no_charged_battery', 'abandoned_queue'])]
+hourly_failures = major_failures.groupby('hour').size()
+
+# Plot: Network Congestion by Hour
+plt.figure(figsize=(10, 5))
+hourly_failures.plot(kind='bar', color='darkorange')
+plt.title('Network Congestion: Major Failures by Hour of Day')
+plt.xlabel('Hour of the Day (0 = Midnight, 23 = 11 PM)')
+plt.ylabel('Total Number of Failures')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+# ==========================================
+# 5. ELIMINATING SURVIVORSHIP BIAS (TRUE CHURN)
+# ==========================================
+# Merge swaps and riders
+df_merged = swaps.merge(riders, on='rider_id', how='left')
+
+# Find the last swap date for each individual rider
+last_swap_per_rider = df_merged.groupby('rider_id')['event_ts'].max().reset_index()
+max_date = df_merged['event_ts'].max()
+print(f"\nThe latest date in the dataset is: {max_date}")
+
+# 30-Day Inactivity Cutoff
+cutoff_date = max_date - pd.Timedelta(days=30)
+last_swap_per_rider['has_quit'] = last_swap_per_rider['event_ts'] < cutoff_date
+
+# True Churn Rate
+churn_rates = last_swap_per_rider['has_quit'].value_counts(normalize=True) * 100
+print("\n--- True Rider Churn Rate ---")
+print("False = Still Active | True = Quit the Platform")
+print(churn_rates.round(2).astype(str) + '%')
+
+# ==========================================
+# 6. WHY ARE THEY LEAVING? (CHURN DRIVERS)
+# ==========================================
+# Attach 'has_quit' back to the main dataset
+df_with_churn = df_merged.merge(last_swap_per_rider[['rider_id', 'has_quit']], on='rider_id', how='left')
+
+# Wait times & Stockouts for Active vs Churned
+churn_wait_times = df_with_churn.groupby('has_quit')['wait_time_minutes'].mean().round(2)
+df_with_churn['experienced_stockout'] = df_with_churn['event_type'] == 'failed_no_charged_battery'
+churn_failures = df_with_churn.groupby('has_quit')['experienced_stockout'].sum()
+
+print("\n--- Average Wait Time per Swap (Minutes) ---")
+print("False = Active | True = Quit")
+print(churn_wait_times)
+print("\n--- Total 'No Battery' Failures Experienced ---")
+print(churn_failures)
+
+# ==========================================
+# 7. ISOLATING VARIABLES (UNIVERSAL CHURN)
+# ==========================================
+# Create a unique rider profile table to prevent double-counting
+rider_profiles = df_with_churn[['rider_id', 'home_city', 'partner_id', 'vehicle_class', 'has_quit']].drop_duplicates()
+rider_profiles['is_independent'] = rider_profiles['partner_id'].isna()
+
+# A. Churn by City
+print("\n--- TRUE Churn Rate by City (%) ---")
+print((rider_profiles.groupby('home_city')['has_quit'].mean() * 100).round(1).astype(str) + '%')
+
+# B. Churn by Fleet vs Independent
+print("\n--- Churn: Fleet Partner vs Independent Rider (%) ---")
+print("False = Fleet Rider | True = Independent Rider")
+print((rider_profiles.groupby('is_independent')['has_quit'].mean() * 100).round(1).astype(str) + '%')
+
+# C. Churn by Vehicle Class
+print("\n--- TRUE Churn by Vehicle Class (%) ---")
+print((rider_profiles.groupby('vehicle_class')['has_quit'].mean() * 100).round(1).astype(str) + '%')
+
+# D. Battery Health check
+print("\n--- Average Battery Health Received (SOH %) ---")
+print((df_with_churn.groupby('has_quit')['soh_out_pct'].mean()).round(1).astype(str) + '%')
+
+# ==========================================
+# 8. THE HARDWARE BOTTLENECK (GEN1 vs GEN3)
+# ==========================================
+# Merge station hardware data
+df_with_stations = df_with_churn.merge(stations, on='station_id', how='left')
+
+# Calculate Failure Rates by Generation
+total_swaps_by_gen = df_with_stations['charger_generation'].value_counts()
+major_failures_hw = df_with_stations[df_with_stations['event_type'].isin(['failed_no_charged_battery', 'abandoned_queue'])]
+failures_by_gen = major_failures_hw['charger_generation'].value_counts()
+failure_rate_by_gen = (failures_by_gen / total_swaps_by_gen) * 100
+
+print("\n--- Total Failures by Charger Generation ---")
+print(failures_by_gen)
+print("\n--- Failure Rate by Charger Generation (%) ---")
+print(failure_rate_by_gen.round(2).astype(str) + '%')
+
+# ==========================================
+# Plot: Hardware Failure Rates
+# ==========================================
+
+gen_data = pd.DataFrame({
+    'Generation': ['Gen1', 'Gen2', 'Gen3'],
+    'Failure_Rate_Pct': [6.51, 4.11, 4.10], # Hardcoded based on calculated output for plotting
+    'Total_Failures': [118531, 69124, 15267]
+})
+
+plt.figure(figsize=(8, 5))
+sns.barplot(data=gen_data, x='Generation', y='Failure_Rate_Pct', palette='Reds_r')
+plt.title('Equipment Reliability: Failure Rate by Charger Generation')
+plt.ylabel('Failure Rate (%)')
+plt.xlabel('Charger Generation')
+
+# Add percentage labels above bars
+for index, value in enumerate(gen_data['Failure_Rate_Pct']):
+    plt.text(index, value + 0.1, f'{value}%', ha='center', fontweight='bold')
+
+plt.show()
