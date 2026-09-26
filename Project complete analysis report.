@@ -1,0 +1,51 @@
+VoltRelay Energy: Operations & Customer Experience Analysis
+
+1. Problem Understanding
+VoltRelay Energy has experienced substantial growth across its six-city EV battery-swapping network, but this scale has masked deteriorating operational health.
+Despite increasing total swaps and revenue, the network is suffering from rising service failures, eroding per-swap margins, and declining new-rider retention.
+Leadership requires an evidence-based diagnosis of these friction points to determine whether the upcoming operating budget should be deployed toward geographic
+expansion, deeper battery inventory, network-wide pricing changes, or fleet partner exclusivity.
+
+2. Analytical Approach
+The investigation leveraged 18 months of operational history encompassing 3.9 million swap events, 20,000 rider profiles, and station telemetry.
+The analytical pipeline included:
+Data Integrity Resolution: Corrected a timestamp logging error linked to firmware v3.2.0, deduplicated offline-batch sync anomalies, and standardized geographic market naming conventions.
+KPI Definition: Redefined rider churn at the individual user level (30 days of inactivity) rather than the transaction level to eliminate survivorship bias.
+Hypothesis Testing: Systematically isolated and tested operational variables, comparing outcomes across vehicle classes (2W vs. 3W), commercial arrangements (Fleet vs. Independent), geographic markets, and equipment generations.
+
+3. Key Insights
+The Mealtime Bottleneck: While the network boasts a 94.04% top-line success rate, this average conceals over 200,000 critical failures (failed_no_charged_battery and abandoned_queue). 
+These failures are highly concentrated during peak gig-economy earning windows: the 12:00 PM lunch rush and the 7:00 PM - 9:00 PM evening commute, where network outages exceed 25,000 per hour. 
+The Wait Time Cliff: When the network bottlenecks, riders face an average queue wait time of 11.71 minutes before abandoning the attempt. For logistics and quick-commerce riders, 
+this idle time directly destroys their daily earning potential. 
+The Gen1 Hardware Deficit: The root cause of these bottlenecks is localized hardware performance. Gen1 charging cabinets fail at a rate of 6.51%, severely underperforming newer 
+Gen2 (4.11%) and Gen3 (4.10%) infrastructure. Gen1 stations are responsible for 118,531 absolute failures—more than all newer equipment combined.
+Universal Churn: The platform suffers a massive ~40% true churn rate. This attrition is uniform across all cities (37% - 42%), 
+vehicle classes (39.4% for 2W, 41.5% for 3W), and rider segments (40.0% for Fleet, 39.2% for Independent).
+
+4. Supporting Visualizations
+Table 1: Network Failure Distribution by Time of Day
+Morning (6 AM - 10 AM): ~6,500 Average Failures/Hour (Morning Commute)
+Lunch Rush (12 PM - 2 PM): ~17,300 Average Failures/Hour (Food Delivery Spikes)
+Evening Rush (7 PM - 9 PM): ~26,000 Average Failures/Hour (Quick Commerce & Commute)
+Table 2: Equipment Reliability Profile
+Gen1: 1,820,752 Total Swaps Attempted | 118,531 Major Failures | 6.51% Failure Rate
+Gen2: 1,681,849 Total Swaps Attempted | 69,124 Major Failures | 4.11% Failure Rate
+Gen3: 372,398 Total Swaps Attempted | 15,267 Major Failures | 4.10% Failure Rate
+
+5. Business Findings
+Rider attrition is not a pricing, geographic, or battery degradation problem. It is a predictable outcome of severe hardware bottlenecks during peak operating hours. 
+The Gen1 charging cabinets cannot process depleted batteries fast enough to support the throughput required by VoltRelay's core user base. Because the resulting 12-minute
+wait times and complete stockouts occur uniformly across the network during crucial earning windows, gig workers of all types are abandoning the platform at a 40% rate.
+
+Network-wide pricing pilots failed to curb this attrition because price adjustments do not resolve the physical charging limitations of the hardware. 
+Similarly, the data indicates that expanding the footprint without addressing Gen1 turnaround times will only replicate a broken operational model in new zip codes.
+
+6. Actionable Recommendations
+Primary Budget Allocation (More Batteries): Immediately deploy the upcoming operating budget to purchase and inject heavy battery inventory into all high-density transit hubs utilizing Gen1 equipment. 
+This localized inventory expansion will create a deep physical buffer to absorb the lunch and dinner demand spikes that the older chargers cannot keep up with.
+CapEx Reallocation (Gen1 Retrofits): Evaluate the cost-benefit of retrofitting existing Gen1 cabinets with Gen3 internals. If the cost of localized battery buffering exceeds 
+the cost of a hardware upgrade over a 12-month horizon, shift capital expenditure to station modernization.
+
+Halt Geographic Expansion: Suspend the Wave 3 station expansion plan. Focus all operational resources on stabilizing existing network reliability and 
+driving the 40% churn rate down to a sustainable baseline (<20%) before attempting to scale the platform's footprint.
